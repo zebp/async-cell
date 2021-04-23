@@ -1,5 +1,9 @@
 import AsyncCell from "./mod.ts";
-import { assertEquals, fail } from "https://deno.land/std/testing/asserts.ts";
+import {
+  assert,
+  assertEquals,
+  fail,
+} from "https://deno.land/std/testing/asserts.ts";
 
 Deno.test({
   name: "single load",
@@ -65,5 +69,16 @@ Deno.test({
     await cell.take();
 
     assertEquals(cell.peek(), undefined);
+  },
+});
+
+Deno.test({
+  name: "subscribe",
+  fn: () => {
+    const cell = new AsyncCell();
+    let subscriptionCalled = false;
+    cell.subscribe(() => subscriptionCalled = true);
+    cell.insert({});
+    assert(subscriptionCalled);
   },
 });
