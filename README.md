@@ -1,6 +1,6 @@
 # async-cell
 
-An async cell that holds a value and can alert users when a value in inserted.
+An async cell that holds a value and can alert users when a value is inserted.
 
 ## Examples
 
