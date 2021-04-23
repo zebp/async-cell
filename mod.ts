@@ -31,6 +31,14 @@ export default class AsyncCell<T> {
   }
 
   /**
+   * Peeks into the cell to check the current inner value.
+   * @returns the current inner value of the cell.
+   */
+  public peek(): T | undefined {
+    return this.inner;
+  }
+
+  /**
    * Inserts a value into the cell and resolves all promises waiting on the cell to be filled.
    * @param value the value to insert into the cell.
    */

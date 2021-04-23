@@ -53,3 +53,17 @@ Deno.test({
     if (cellHadValue) fail("Cell yielded the same value twice with take()");
   },
 });
+
+Deno.test({
+  name: "peek",
+  fn: async () => {
+    const cell = new AsyncCell(10);
+
+    assertEquals(cell.peek(), 10);
+
+    // Clear the cell.
+    await cell.take();
+
+    assertEquals(cell.peek(), undefined);
+  },
+});
