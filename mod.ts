@@ -5,25 +5,43 @@ export type Subscription<T> = (
   prevValue: T | undefined,
 ) => void;
 
+export enum ResolvePriority {
+  Takes = "takes",
+  Loads = "loads",
+}
+
 /**
  * A cell that holds a value and can alert users when a value in inserted.
  */
 export default class AsyncCell<T> {
+  private readonly priority: ResolvePriority;
   private inner?: T;
-  private resolvers: ResolveFunction<T>[] = [];
   private subscriptions: Subscription<T>[] = [];
+  private resolvers: Record<ResolvePriority, ResolveFunction<T>[]> = {
+    takes: [],
+    loads: [],
+  };
 
-  public constructor(value?: T) {
+  public constructor(
+    value?: T,
+    priority: ResolvePriority = ResolvePriority.Takes,
+  ) {
     this.inner = value;
+    this.priority = priority;
   }
 
   /**
    * Returns the value from the cell or waits for a value to be inserted.
    * @returns the value in the cell.
    */
-  public async load(): Promise<T> {
-    return this.inner ??
-      await new Promise((resolve) => this.resolvers.push(resolve));
+  public load(): Promise<T> {
+    if (this.inner !== undefined) {
+      return Promise.resolve(this.inner);
+    }
+
+    return new Promise((resolve) => {
+      this.resolvers.loads.push(resolve);
+    });
   }
 
   /**
@@ -31,9 +49,15 @@ export default class AsyncCell<T> {
    * @returns the value placed into the cell.
    */
   public async take(): Promise<T> {
-    const value = await this.load();
-    this.inner = undefined;
-    return value;
+    if (this.inner !== undefined) {
+      const oldValue = this.inner;
+      this.inner = undefined;
+      return oldValue;
+    }
+
+    return await new Promise((resolve) => {
+      this.resolvers.takes.push(resolve);
+    });
   }
 
   /**
@@ -51,7 +75,7 @@ export default class AsyncCell<T> {
   public insert(value?: T) {
     const prevValue = this.inner;
 
-    if (!value) {
+    if (value === undefined) {
       this.inner = undefined;
       this.subscriptions.forEach((subscription) =>
         subscription(undefined, prevValue)
@@ -61,10 +85,23 @@ export default class AsyncCell<T> {
       this.subscriptions.forEach((subscription) =>
         subscription(value, prevValue)
       );
+    }
 
-      // Resolve all promises waiting for a value in the cell and then clear the array.
-      this.resolvers.forEach((resolve) => resolve(value));
-      this.resolvers = [];
+    if (this.inner === undefined) return;
+
+    // If we prioritize loads we'll resolve them before we resolve takes.
+    if (this.priority === ResolvePriority.Loads) {
+      this.resolvers.loads.forEach((resolver) => resolver(this.inner!));
+      this.resolvers.loads = [];
+    }
+
+    const takeResolveFunction = this.resolvers.takes.shift();
+    if (takeResolveFunction !== undefined) {
+      takeResolveFunction(this.inner);
+    } else if (this.priority === ResolvePriority.Takes) {
+      // Otherwise if we prioritize takes we'll resolve them after we do any takes, but not if there were tany takes.
+      this.resolvers.loads.forEach((resolver) => resolver(this.inner!));
+      this.resolvers.loads = [];
     }
   }
 
@@ -72,9 +109,7 @@ export default class AsyncCell<T> {
    * Registers a {@link Subscription} that is called when a new value is inserted into the cell.
    * @param subscriptions subscriptions to be invoked when a new value is inserted into the cell.
    */
-  public subscribe(
-    ...subscriptions: Subscription<T>[]
-  ): void {
+  public subscribe(...subscriptions: Subscription<T>[]): void {
     this.subscriptions = [...this.subscriptions, ...subscriptions];
   }
 }

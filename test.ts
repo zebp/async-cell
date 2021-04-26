@@ -40,7 +40,7 @@ Deno.test({
     const cell = new AsyncCell(10);
 
     let value = undefined;
-    cell.take().then((newValue) => value = newValue);
+    cell.take().then((newValue) => (value = newValue));
 
     // Wait 10ms so for the cell to load.
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -77,8 +77,27 @@ Deno.test({
   fn: () => {
     const cell = new AsyncCell();
     let subscriptionCalled = false;
-    cell.subscribe(() => subscriptionCalled = true);
+    cell.subscribe(() => (subscriptionCalled = true));
     cell.insert({});
     assert(subscriptionCalled);
+  },
+});
+
+Deno.test({
+  name: "no double take",
+  fn: async () => {
+    let takes = 0;
+    const cell = new AsyncCell();
+
+    cell.take().then(() => takes++);
+    cell.take().then(() => takes++);
+
+    cell.insert(0);
+
+    // We need to wait a split second for the event loop to execute the take promises.
+    await new Promise((resolve) => setTimeout(resolve, 2, false));
+
+    // Assert we only resolve a single take promise.
+    assertEquals(takes, 1);
   },
 });
