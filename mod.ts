@@ -2,7 +2,7 @@ type ResolveFunction<T> = (value: T | PromiseLike<T>) => void;
 
 export type Subscription<T> = (
   value: T | undefined,
-  prevValue: T | undefined
+  prevValue: T | undefined,
 ) => void;
 
 export enum ResolvePriority {
@@ -24,7 +24,7 @@ export default class AsyncCell<T> {
 
   public constructor(
     value?: T,
-    priority: ResolvePriority = ResolvePriority.Takes
+    priority: ResolvePriority = ResolvePriority.Takes,
   ) {
     this.inner = value;
     this.priority = priority;
