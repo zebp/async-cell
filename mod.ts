@@ -120,6 +120,7 @@ export default class AsyncCell<T> {
    */
   orInsert(func: () => T | Promise<T>) {
     if (this.#inner !== undefined) return;
+    if (this.#pendingInsertion) throw new PendingInsertionError();
 
     const output = func();
 
