@@ -1,7 +1,8 @@
-import AsyncCell from "./mod.ts";
+import AsyncCell, { PendingInsertionError } from "./mod.ts";
 import {
   assert,
   assertEquals,
+  assertThrows,
   fail,
 } from "https://deno.land/std/testing/asserts.ts";
 
@@ -51,7 +52,7 @@ Deno.test({
     const cellHadValue: boolean = await Promise.race([
       cell.take().then(() => true),
       // Wait 100ms to see if we get cellHadValue double take.
-      await new Promise((resolve) => setTimeout(resolve, 10, false)),
+      await new Promise<boolean>((resolve) => setTimeout(resolve, 10, false)),
     ]);
 
     if (cellHadValue) fail("Cell yielded the same value twice with take()");
@@ -99,5 +100,56 @@ Deno.test({
 
     // Assert we only resolve a single take promise.
     assertEquals(takes, 1);
+  },
+});
+
+Deno.test({
+  name: "or insert sync",
+  fn: async () => {
+    const cell = new AsyncCell<number>();
+    cell.orInsert(() => 1);
+
+    assertEquals(await cell.take(), 1);
+  },
+});
+
+Deno.test({
+  name: "or insert async instant",
+  fn: async () => {
+    const cell = new AsyncCell<number>();
+    cell.orInsert(() => Promise.resolve(1));
+
+    assertEquals(await cell.take(), 1);
+  },
+});
+
+Deno.test({
+  name: "or insert async",
+  fn: async () => {
+    const cell = new AsyncCell<number>();
+    cell.orInsert(() => new Promise((resolve) => setTimeout(resolve, 100, 1)));
+
+    // Ensure that a `PendingInsertionError` is thrown if we try to insert before the promise
+    // resolves.
+    assertThrows(
+      () => cell.insert(100),
+      (err: unknown) => assert(err instanceof PendingInsertionError),
+    );
+
+    assertEquals(await cell.take(), 1);
+
+    // Call insert after we've waited for the orInsert promise to resolve, ensuring we don't throw
+    // another PendingInsertionError
+    cell.insert(100);
+  },
+});
+
+Deno.test({
+  name: "or insert full cell",
+  fn: async () => {
+    const cell = new AsyncCell<number>(1);
+    cell.orInsert(() => 2);
+
+    assertEquals(await cell.take(), 1);
   },
 });
